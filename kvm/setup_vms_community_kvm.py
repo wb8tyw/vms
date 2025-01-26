@@ -160,7 +160,12 @@ DOLLAR_ACTIONS = [
     b'mcr sysman shutdown node /auto /min=0',
     b'wait 00:10',
     b'@sys$manager:net$configure',
+    b'show network',
     b'@sys$manager:tcpip$config',
+    b'show network',
+    b'mcr sysman shutdown node /auto /min=0',
+    b'wait 00:10',
+    b'show network',
     b'@sys$startup:ssh$startup.com']
 
 DECNET_OPTION_ACTIONS = [b'0']
@@ -176,14 +181,11 @@ INTSET_ACTIONS = [
     b'',
     b'']
 
-USERNAME_ACTIONS = [
-    b'SYSTEM',
-    b'SYSTEM',
-    b'SYSTEM',
-    b'SYSTEM',
-    b'SYSTEM']
+USERNAME_ACTIONS = [ b'SYSTEM' ]
 
 PASSWORD_ACTIONS = [
+    target_password,
+    target_password,
     target_password,
     target_password,
     target_password,
@@ -196,6 +198,7 @@ TCPIP_CONFIG_ACTIONS = [
     b'0',   # target node
     b'1',   # Configure interface
     b'3',   # Enable default interface
+    b'2',   # Enable and start service on this node
     b'E',   # Exit default interface
     b'E',   # Exit interface
     b'3',   # Routing
@@ -205,7 +208,6 @@ TCPIP_CONFIG_ACTIONS = [
     b'1',   # DHCP client
     b'1',   # Enable
     b'E',   # exit Client
-    b'6',   # start TCP
     b'E'    # exit config
 ]
 
@@ -219,6 +221,7 @@ TCPIP_SYSTEM_DEVICE_ACTIONS = [ b'sys$sysdevice:']
 TCPIP_SYSTEM_ROOT_ACTIONS = [ target_root ]
 
 YES_ACTIONS = [ b'YES' ]
+ZERO_ACTIONS = [ b'0' ]
 DEFAULT_ACTIONS = [ b'', b'' ]
 
 PROMPT_ACTIONS = [
@@ -233,6 +236,8 @@ PROMPT_ACTIONS = [
     ('\n\rUsername: ', 'USERNAME', USERNAME_ACTIONS),
     ('\r\nPassword: ', 'PASSWORD', PASSWORD_ACTIONS),
     ('\n\rPassword: ', 'PASSWORD', PASSWORD_ACTIONS),
+    ('Do you wish to shutdown the network ? ', 'DECNET_SHUTDOWN', YES_ACTIONS),
+    ('Minutes till network shutdown ? ', 'DECNET_MINUTES', ZERO_ACTIONS),
     ('configuration option to perform? ', 'DECNET_OPTION',
       DECNET_OPTION_ACTIONS),
     (',Domain] : ', 'DECNET_DOMAIN', DECNET_DOMAIN_ACTIONS),
@@ -280,24 +285,27 @@ def prompt_handler(console: Console, prompt: tuple):
             logging.info(
               "Unexpected Prompt %s %s > %s ",
               prompt[1], prompt_index, num_cmds)
+            if prompt[1] == 'DOLLAR':
+                print('\n\nConfiguration complete.\n')
+                sys.exit(0)
             return
         cmd = prompt[2][prompt_index] + b'\r'
-        console.prompt_index[prompt[1]] += 1
-        if prompt[1] == 'USERNAME':
-            if console.reboot:
-                console.stream.send(cmd)
-                console.reboot = False
-        else:
-            console.stream.send(cmd)
-        # if prompt[1] == 'USERNAME':
-        #     print("--------------------------------------------")
-        #     print("Username: seen")
-        #     print("--------------------------------------------")
         if prompt[1] == 'INTSET':
             print("reboot seen")
             console.reboot = True
             sleep(10)
             console.stream.send(cmd)
+        elif prompt[1] == 'USERNAME':
+            if console.reboot:
+                console.stream.send(cmd)
+                console.reboot = False
+        else:
+            console.prompt_index[prompt[1]] += 1
+            console.stream.send(cmd)
+        # if prompt[1] == 'USERNAME':
+        #     print("--------------------------------------------")
+        #     print("Username: seen")
+        #     print("--------------------------------------------")
 
 
 def stream_callback(_stream: libvirt.virStream,
